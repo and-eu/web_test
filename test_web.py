@@ -80,8 +80,8 @@ class TestProductNavigation(BasicTest):
     def test_navigate_to_prod_detail(self, index=0):
         items = self.driver.find_elements(By.CLASS_NAME, "inventory_item_name")
         items[index].click()
-        item = (WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME,
-                                                                                    'inventory_details_container'))))
+        item = (WebDriverWait(self.driver, 5).until(
+            EC.presence_of_element_located((By.CLASS_NAME, 'inventory_details_container'))))
         assert item
 
     def test_navigate_back_from_prod_detail(self):
@@ -130,3 +130,49 @@ class TestProductNavigation(BasicTest):
         with pytest.raises(NoSuchElementException) as excinfo:
             self.driver.find_element(By.CSS_SELECTOR, "button.btn.btn_secondary.btn_small.cart_button")
         assert 'Unable to locate element' in excinfo.value.msg
+
+
+class TestCheckout(BasicTest):
+    def setup_method(self):
+        try:
+            self.driver.get("https://www.saucedemo.com/")
+            self.login("standard_user", "secret_sauce")
+            self.driver.find_element(By.ID, "add-to-cart-sauce-labs-backpack").click()
+            self.driver.find_element(By.ID, "add-to-cart-sauce-labs-bolt-t-shirt").click()
+            self.driver.find_element(By.ID, "shopping_cart_container").click()
+            title = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME, 'title')))
+            assert 'Your Cart' in title.text, "Cart can't load"
+            items = [el.text for el in self.driver.find_elements(By.CLASS_NAME, "inventory_item_name")]
+            assert "Sauce Labs Backpack" in items, "Item not in cart"
+            assert "Sauce Labs Bolt T-Shirt" in items, "Item not in cart"
+        except Exception as e:
+            pytest.fail(f"Setup failed: {str(e)}", pytrace=True)
+
+    def test_checkout_process(self):
+        self.driver.find_element(By.ID, "checkout").click()
+        title = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME, 'title')))
+        assert 'Checkout' in title.text, "Checkout fail"
+
+        self.driver.find_element(By.ID, "first-name").send_keys("Test")
+        self.driver.find_element(By.ID, "last-name").send_keys("User")
+        self.driver.find_element(By.ID, "postal-code").send_keys("12345")
+        self.driver.find_element(By.ID, "continue").click()
+        title = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.CLASS_NAME, 'title')))
+        assert 'Overview' in title.text, "Information page continue fail"
+
+        items = [el.text for el in self.driver.find_elements(By.CLASS_NAME, "inventory_item_name")]
+        assert "Sauce Labs Backpack" in items, "First item not in overview page"
+        assert "Sauce Labs Bolt T-Shirt" in items, "Second item not in overview page"
+
+        prices = [el.text for el in self.driver.find_elements(By.CLASS_NAME, "inventory_item_price")]
+        calulated_subtotal = float(prices[0][1:])+float(prices[1][1:])
+        subtotal = float(self.driver.find_element(By.CLASS_NAME, "summary_subtotal_label").text[-5:])
+        assert calulated_subtotal == subtotal
+        total = float(self.driver.find_element(By.CLASS_NAME, "summary_total_label").text[-5:])
+        assert round(calulated_subtotal*1.08, 2) == total
+
+        self.driver.find_element(By.ID, "finish").click()
+        confirmation_msg = WebDriverWait(self.driver, 5).until(
+            EC.presence_of_element_located((By.CLASS_NAME, 'complete-header')))
+        assert "Thank you for your order!" in confirmation_msg.text
+
