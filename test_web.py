@@ -165,14 +165,39 @@ class TestCheckout(BasicTest):
         assert "Sauce Labs Bolt T-Shirt" in items, "Second item not in overview page"
 
         prices = [el.text for el in self.driver.find_elements(By.CLASS_NAME, "inventory_item_price")]
-        calulated_subtotal = float(prices[0][1:])+float(prices[1][1:])
+        calculated_subtotal = float(prices[0][1:])+float(prices[1][1:])
         subtotal = float(self.driver.find_element(By.CLASS_NAME, "summary_subtotal_label").text[-5:])
-        assert calulated_subtotal == subtotal
+        assert calculated_subtotal == subtotal
         total = float(self.driver.find_element(By.CLASS_NAME, "summary_total_label").text[-5:])
-        assert round(calulated_subtotal*1.08, 2) == total
+        assert round(calculated_subtotal*1.08, 2) == total
 
         self.driver.find_element(By.ID, "finish").click()
         confirmation_msg = WebDriverWait(self.driver, 5).until(
             EC.presence_of_element_located((By.CLASS_NAME, 'complete-header')))
         assert "Thank you for your order!" in confirmation_msg.text
 
+
+class TestMiscellaneous(BasicTest):
+
+    def setup_method(self):
+        self.driver.get("https://www.saucedemo.com/")
+        self.login("standard_user", "secret_sauce")
+        WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.ID, 'inventory_container')))
+
+    def test_sorting_functionality(self):
+        self.driver.find_element(By.CLASS_NAME, "product_sort_container").click()
+        self.driver.find_element(By.XPATH, "//option[text()='Price (low to high)']").click()
+        sorted_products = self.driver.find_elements(By.CLASS_NAME, "inventory_item_price")
+        prices = [float(price.text.strip('$')) for price in sorted_products]
+        assert prices == sorted(prices), "Products are not sorted by price low to high"
+
+    def test_logout_functionality(self):
+        self.driver.find_element(By.ID, "react-burger-menu-btn").click()
+        WebDriverWait(self.driver, 5).until(EC.element_to_be_clickable((By.ID, "logout_sidebar_link"))).click()
+
+        login = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.ID, "login-button")))
+        assert login
+
+        self.driver.get("https://www.saucedemo.com/inventory.html")
+        login = WebDriverWait(self.driver, 5).until(EC.presence_of_element_located((By.ID, "login-button")))
+        assert login
